@@ -1,0 +1,21 @@
+[project]
+name = "timeschat"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "langchain",
+    "langgraph",
+    "fastapi",
+    "pydantic",
+    "python-multipart",
+    "python-dotenv",
+    "langchain_groq",
+    "langchain_community",
+    "langgraph-checkpoint-sqlite",
+    "uvicorn",
+    "aiosqlite",
+    "langchain_tavily"
+]
+

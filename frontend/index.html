@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TimesChat | AI Explorer</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        ::-webkit-scrollbar { width: 5px; }
+        ::-webkit-scrollbar-track { background: #1f2937; }
+        ::-webkit-scrollbar-thumb { background: #4b5563; border-radius: 10px; }
+        .active-session { border-left: 4px solid #3b82f6; background-color: #374151; }
+    </style>
+</head>
+<body class="bg-gray-900 text-gray-100 h-screen flex overflow-hidden font-sans">
+
+    <!-- SIDEBAR -->
+    <aside class="w-72 bg-gray-800 border-r border-gray-700 flex flex-col shrink-0">
+        <!-- App Name Header -->
+        <div class="p-6 border-b border-gray-700">
+            <h1 class="text-2xl font-black text-white tracking-tighter italic">
+                TIMES<span class="text-blue-500">CHAT</span>
+            </h1>
+        </div>
+
+        <div class="p-4">
+            <button onclick="startNewChat()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 px-4 rounded-lg transition flex items-center justify-center gap-2 shadow-lg">
+                <span>+</span> New Chat
+            </button>
+        </div>
+        
+        <div class="px-4 py-2 text-[10px] font-bold text-gray-500 uppercase tracking-widest">
+            Recent History
+        </div>
+        
+        <div id="session-list" class="flex-1 overflow-y-auto px-2 space-y-1">
+            <!-- Sessions injected here -->
+        </div>
+
+        <div class="p-4 border-t border-gray-700 bg-gray-900/50">
+            <div class="flex items-center gap-3">
+                <div class="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center font-bold text-xs">U</div>
+                <div class="text-xs">
+                    <p class="text-gray-300 font-medium">Local User</p>
+                    <p class="text-gray-500">Groq Llama 3.3</p>
+                </div>
+            </div>
+        </div>
+    </aside>
+
+    <!-- MAIN CONTENT -->
+    <main class="flex-1 flex flex-col min-w-0 bg-[#0b1120]">
+        <header class="h-16 border-b border-gray-800 flex items-center justify-between px-6 bg-gray-900/40 backdrop-blur-md">
+            <div class="flex flex-col">
+                <h2 id="chat-title" class="font-bold text-gray-200 truncate max-w-md">New Conversation</h2>
+                <span id="chat-id-display" class="text-[9px] text-gray-600 font-mono uppercase tracking-tighter"></span>
+            </div>
+            <div id="status-bar" class="text-xs font-medium text-blue-400 animate-pulse"></div>
+        </header>
+
+        <!-- Chat Window -->
+        <div id="chat-window" class="flex-1 overflow-y-auto p-6 space-y-6 flex flex-col">
+            <div id="welcome-screen" class="self-center mt-32 text-center max-w-sm">
+                <div class="text-4xl mb-4">🌐</div>
+                <h3 class="text-xl font-bold text-gray-200">Welcome to TimesChat</h3>
+                <p class="text-sm text-gray-500 mt-2">The world of AI is moving fast. Ask me about the latest releases, tools, or research.</p>
+            </div>
+        </div>
+
+        <!-- Input Area -->
+        <footer class="p-6 bg-gradient-to-t from-gray-950 to-transparent">
+            <div class="max-w-4xl mx-auto">
+                <div class="flex gap-3 bg-gray-800/80 p-2.5 rounded-2xl border border-gray-700 focus-within:border-blue-500/50 transition-all shadow-2xl">
+                    <input type="text" id="userInput" 
+                        class="flex-1 bg-transparent border-none text-white px-4 py-2 focus:outline-none placeholder:text-gray-600"
+                        placeholder="What's happening in AI today?">
+                    <button onclick="sendMessage()" 
+                        class="bg-blue-600 hover:bg-blue-500 text-white px-6 py-2 rounded-xl font-bold transition">
+                        Send
+                    </button>
+                </div>
+            </div>
+        </footer>
+    </main>
+
+    <script>
+        const API_URL = "http://localhost:8000";
+
+        window.onload = () => {
+            const tid = getThreadId();
+            document.getElementById('chat-id-display').innerText = tid;
+            loadSessions();
+        };
+
+        function getThreadId() {
+            let tid = localStorage.getItem("chat_thread_id");
+            if (!tid) {
+                tid = crypto.randomUUID();
+                localStorage.setItem("chat_thread_id", tid);
+            }
+            return tid;
+        }
+
+        async function loadSessions() {
+            try {
+                const res = await fetch(`${API_URL}/sessions`);
+                const sessions = await res.json();
+                const list = document.getElementById("session-list");
+                const currentId = getThreadId();
+                list.innerHTML = "";
+
+                sessions.forEach(s => {
+                    const isActive = s.id === currentId;
+                    const item = document.createElement("div");
+                    item.className = `group flex items-center justify-between p-3 rounded-xl cursor-pointer transition relative ${isActive ? 'active-session bg-gray-700/50' : 'hover:bg-gray-800/50'}`;
+                    
+                    item.innerHTML = `
+                        <div class="flex-1 min-w-0" onclick="switchChat('${s.id}')">
+                            <div class="text-xs font-semibold truncate text-gray-300">${s.name}</div>
+                            <div class="text-[9px] text-gray-600 font-mono truncate">${s.id}</div>
+                        </div>
+                        <button onclick="deleteChat(event, '${s.id}')" class="ml-2 p-1.5 rounded-md hover:bg-red-500/20 text-gray-600 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
+                        </button>
+                    `;
+                    list.appendChild(item);
+                });
+            } catch (e) { console.error(e); }
+        }
+
+        async function deleteChat(event, id) {
+            event.stopPropagation(); // Don't trigger switchChat
+            if (!confirm("Delete this conversation?")) return;
+
+            try {
+                await fetch(`${API_URL}/sessions/${id}`, { method: 'DELETE' });
+                if (id === localStorage.getItem("chat_thread_id")) {
+                    localStorage.removeItem("chat_thread_id");
+                    window.location.reload();
+                } else {
+                    loadSessions();
+                }
+            } catch (e) { alert("Failed to delete chat."); }
+        }
+
+        function switchChat(id) {
+            localStorage.setItem("chat_thread_id", id);
+            document.getElementById("chat-window").innerHTML = "";
+            document.getElementById("chat-id-display").innerText = id;
+            document.getElementById("welcome-screen")?.remove();
+            loadSessions();
+        }
+
+        function startNewChat() {
+            const newId = crypto.randomUUID();
+            localStorage.setItem("chat_thread_id", newId);
+            window.location.reload();
+        }
+
+        function appendMessage(role, content) {
+            document.getElementById("welcome-screen")?.remove();
+            const win = document.getElementById("chat-window");
+            const div = document.createElement("div");
+            const isUser = role === 'user';
+            
+            div.className = `max-w-[85%] p-4 rounded-2xl shadow-sm ${isUser ? 'bg-blue-600 self-end text-white' : 'bg-gray-800 self-start border border-gray-700'}`;
+            div.innerHTML = `
+                <div class="text-[9px] uppercase font-black ${isUser ? 'text-blue-200' : 'text-gray-500'} mb-1.5 tracking-widest">${role}</div>
+                <div class="text-sm leading-relaxed whitespace-pre-wrap">${content}</div>
+            `;
+            win.appendChild(div);
+            win.scrollTop = win.scrollHeight;
+            return div.querySelector('div:last-child');
+        }
+
+        async function sendMessage() {
+            const input = document.getElementById("userInput");
+            const status = document.getElementById("status-bar");
+            const msg = input.value.trim();
+            if (!msg) return;
+
+            appendMessage('user', msg);
+            input.value = "";
+            const responseElement = appendMessage('assistant', "...");
+            responseElement.innerText = "";
+            status.innerText = "Processing...";
+
+            try {
+                const response = await fetch(`${API_URL}/chat`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ message: msg, thread_id: getThreadId() })
+                });
+
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+
+                while (true) {
+                    const { value, done } = await reader.read();
+                    if (done) break;
+                    const chunk = decoder.decode(value);
+                    const lines = chunk.split("\n");
+                    for (const line of lines) {
+                        if (line.startsWith("data: ")) {
+                            const raw = line.replace("data: ", "").trim();
+                            if (raw === "[DONE]") { status.innerText = ""; loadSessions(); continue; }
+                            try {
+                                const data = JSON.parse(raw);
+                                if (data.type === 'token') responseElement.innerText += data.content;
+                                if (data.type === 'tool') status.innerText = data.content;
+                            } catch (e) {}
+                        }
+                    }
+                    document.getElementById("chat-window").scrollTop = document.getElementById("chat-window").scrollHeight;
+                }
+            } catch (err) {
+                responseElement.innerText = "Connection error.";
+                status.innerText = "";
+            }
+        }
+
+        document.getElementById("userInput").onkeypress = (e) => { if(e.key === 'Enter') sendMessage(); };
+    </script>
+</body>
+</html>
